@@ -82,4 +82,8 @@ The script includes error handling and will:
 - Show response content for debugging
 - Skip pages that don't contain images
 - Stop when it reaches the end of the document or specified page limit
+<<<<<<< HEAD
 - Handle missing or corrupted images during PDF compilation 
+=======
+- Handle missing or corrupted images during PDF compilation
+>>>>>>> d828c94d8a73ee092b3fc12fa57ac1c606827863

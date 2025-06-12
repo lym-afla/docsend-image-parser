@@ -3,4 +3,8 @@ Pillow>=10.2.0
 reportlab>=4.1.0
 pytesseract>=0.3.10
 PyPDF2>=3.0.0
+<<<<<<< HEAD
 pdf2image>=1.16.3 
+=======
+pdf2image>=1.16.3
+>>>>>>> d828c94d8a73ee092b3fc12fa57ac1c606827863
