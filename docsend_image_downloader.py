@@ -96,15 +96,16 @@ def main():
     
     # Document ID and view ID from the network requests
     document_id = "4czrsfv6iketzu76"
-    view_id = "y4vek7ms3bk3dfp9"
+    view_id = "dummy"
     output_dir = 'Zephyr_teaser'
+    end_page = 3
     
     # Download images from pages 1 to 10 (adjust as needed)
     downloader.download_document_images(
         document_id=document_id,
         view_id=view_id,
         start_page=1,
-        end_page=3,
+        end_page=end_page,
         output_dir=f'downloaded_images/{output_dir}'
     )
 

@@ -1,6 +1,6 @@
 # DocSend Image Downloader
 
-This script allows you to download images from DocSend documents by simulating browser requests and compile them into a PDF.
+This script allows you to download images from DocSend documents by simulating browser requests and compile them into a PDF with optional OCR (Optical Character Recognition).
 
 ## How It Works
 
@@ -9,6 +9,21 @@ The script works by:
 2. Extracting image URLs from the page data
 3. Downloading the images using the extracted URLs
 4. (Optional) Compiling the downloaded images into a single PDF
+5. (Optional) Adding OCR text layer for searchable PDFs
+
+## Features
+
+### PDF Creation Options
+- **Simple PDF**: Images only (smallest file size)
+- **Searchable PDF (Default)**: Uses Tesseract OCR for excellent quality/size balance ⭐ **RECOMMENDED**
+- **Premium OCR PDF**: Uses OCRmyPDF for maximum OCR quality (larger files)
+
+### OCR Quality Comparison
+| Method | File Size | OCR Quality | Speed | Best For |
+|--------|-----------|-------------|-------|----------|
+| No OCR | Smallest | None | Fastest | Quick viewing |
+| **Tesseract (Default)** | **Medium** | **Excellent** | **Fast** | **Most use cases** ⭐ |
+| OCRmyPDF Premium | Largest | Maximum | Slower | Critical text extraction |
 
 ## Required Parameters
 
@@ -41,6 +56,23 @@ To use this script with a new DocSend document, you'll need to extract the follo
    - CSRF Token from request headers
    - Cookies from request headers
 
+## Installation
+
+1. Install Python dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Install Tesseract OCR:
+   - **Windows**: Download from [Tesseract Wiki](https://github.com/UB-Mannheim/tesseract/wiki)
+   - **macOS**: `brew install tesseract`
+   - **Linux**: `apt install tesseract-ocr`
+
+3. (Optional) For premium OCR, install OCRmyPDF dependencies:
+   - **Windows**: `choco install ghostscript unpaper`
+   - **macOS**: `brew install ocrmypdf`
+   - **Linux**: `apt install ocrmypdf`
+
 ## Usage
 
 1. Update the parameters in the `main()` function:
@@ -61,29 +93,69 @@ self.session.cookies.set('_v_', 'your_v_cookie')
 python docsend_image_downloader.py
 ```
 
-4. (Optional) Compile the downloaded images into a PDF:
+4. Compile the downloaded images into a searchable PDF:
 ```bash
 python compile_to_pdf.py
 ```
 
+## Configuration Options
+
+In `compile_to_pdf.py`, you can configure:
+
+```python
+def main():
+    # Basic settings
+    image_subfolder = 'your_document_name'
+    use_ocr = True  # Set to False for simple PDF without OCR
+    
+    # OCR settings
+    use_premium_ocr = False  # Set to True for OCRmyPDF (premium quality)
+    language = 'eng'  # OCR language: 'eng', 'fra', 'deu', 'spa', etc.
+```
+
+### OCR Mode Selection:
+- **`use_ocr = False`**: Creates simple PDF with images only
+- **`use_ocr = True, use_premium_ocr = False`**: Uses Tesseract (recommended) ⭐
+- **`use_ocr = True, use_premium_ocr = True`**: Uses OCRmyPDF (premium quality)
+
+## Output Files
+
+The script creates different output files based on your settings:
+- `document_name.pdf` - Simple PDF without OCR
+- `document_name_searchable.pdf` - Tesseract OCR (recommended)
+- `document_name_searchable_premium.pdf` - OCRmyPDF premium quality
+
 ## Notes
 
+- **Tesseract OCR** is now the default and recommended method for most use cases
 - The script includes a 1-second delay between requests to avoid rate limiting
 - Images are saved in the `downloaded_images` directory by default
-- The script will automatically create the output directory if it doesn't exist
+- The script will automatically create output directories if they don't exist
 - Authentication tokens and cookies may expire, requiring updates from your browser session
-- The PDF compilation script will automatically sort images by page number
-- Images in the PDF are scaled to fit the page while maintaining aspect ratio
+- The PDF compilation script automatically sorts images by page number
+- Images in PDFs are scaled to fit pages while maintaining aspect ratio
+- All PDFs are created in regular PDF format (fully editable, not PDF/A)
 
 ## Error Handling
 
-The script includes error handling and will:
+The script includes comprehensive error handling and will:
 - Print detailed error messages if requests fail
 - Show response content for debugging
 - Skip pages that don't contain images
 - Stop when it reaches the end of the document or specified page limit
-<<<<<<< HEAD
-- Handle missing or corrupted images during PDF compilation 
-=======
 - Handle missing or corrupted images during PDF compilation
->>>>>>> d828c94d8a73ee092b3fc12fa57ac1c606827863
+- Automatically fall back between OCR methods if needed
+- Install missing Python dependencies automatically
+
+## Troubleshooting
+
+### Common Issues:
+1. **"Tesseract not found"**: Install Tesseract OCR for your operating system
+2. **"OCRmyPDF failed"**: Use default Tesseract mode instead (recommended)
+3. **Authentication errors**: Update cookies and CSRF token from fresh browser session
+4. **Permission denied**: Close any PDF viewers before running the script
+
+### Tips:
+- Start with Tesseract OCR (default) - it provides the best balance of quality and file size
+- Only use premium OCR if you need maximum text extraction accuracy
+- Check that your document subfolder name matches the downloaded images folder
