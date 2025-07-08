@@ -344,7 +344,7 @@ def create_pdf_with_tesseract_fallback(image_dir, output_pdf, language='eng'):
 
 def main():
     # Directory containing the downloaded images
-    image_subfolder = 'Zephyr_presentation'
+    image_subfolder = 'Beyond_Earth_teaser'
     image_dir = f'downloaded_images/{image_subfolder}'
     
     # Configuration
@@ -359,7 +359,7 @@ def main():
             print("🔍 Creating PREMIUM searchable PDF with OCRmyPDF...")
             success = create_pdf_with_ocrmypdf(image_dir, output_pdf, language, high_quality_mode=True)
         else:
-            output_pdf = f'pdf_documents/{image_subfolder}_searchable.pdf'
+            output_pdf = f'pdf_documents/{image_subfolder}.pdf'
             print("🔍 Creating searchable PDF with Tesseract (RECOMMENDED)...")
             success = create_pdf_with_tesseract_default(image_dir, output_pdf, language)
     else:
