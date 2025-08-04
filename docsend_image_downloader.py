@@ -95,10 +95,10 @@ def main():
     downloader = DocSendImageDownloader()
     
     # Document ID and view ID from the network requests
-    document_id = "z9xfzyve27zhhsa3"
-    view_id = "dummy"
-    output_dir = 'Beyond_Earth_teaser'
-    end_page = 19
+    document_id = "tjyfx73t5bcyh8p9"
+    view_id = "9uwb962zgzdzmhg4"
+    output_dir = '202501 Addi Corporate presentation'
+    end_page = 27
     
     # Download images from pages 1 to 10 (adjust as needed)
     downloader.download_document_images(

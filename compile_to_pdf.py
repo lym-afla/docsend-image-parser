@@ -344,9 +344,9 @@ def create_pdf_with_tesseract_fallback(image_dir, output_pdf, language='eng'):
 
 def main():
     # Directory containing the downloaded images
-    image_subfolder = 'Beyond_Earth_teaser'
+    image_subfolder = '202501 Addi Corporate presentation'
     image_dir = f'downloaded_images/{image_subfolder}'
-    
+
     # Configuration
     use_ocr = True  # Set to True for OCR, False for simple PDF
     use_premium_ocr = False  # Set to True for OCRmyPDF (premium quality), False for Tesseract (recommended)
