@@ -1,6 +1,6 @@
 import os
 import time
-from docsend_image_downloader import DocSendImageDownloader
+from docsend_image_downloader import DocSendImageDownloader, get_cookies_from_browser
 
 # Import PDF compilation functions
 from compile_to_pdf import (
@@ -8,6 +8,7 @@ from compile_to_pdf import (
     create_pdf_with_tesseract_default,
     create_pdf_with_ocrmypdf
 )
+from get_cookies_helper import extract_document_info_from_url
 
 def main():
     """
@@ -21,15 +22,33 @@ def main():
     # ============================================================================
     
     # Document settings
-    document_id = "3km9ubygyb79q4mk"  # From DocSend URL
-    view_id = "v7uv3jhnedit8h79"      # From DocSend URL
-    document_name = "GP Formation Certificate (Delaware)"  # Name for output folder
-    end_page = 2  # Set to None for all pages, or specify end page
+    document_url = "https://audeo.docsend.com/view/93wdni8fvi9ch8pd/d/kg8yan5n5mcz4nf9"
+    document_id, view_id = extract_document_info_from_url(document_url)
+    document_name = "Audeo Investment Memo - Plata Secondary"  # Name for output folder
+    end_page = 3  # Set to None for all pages, or specify end page
+    
+    # Authentication settings - ADD YOUR COOKIES HERE
+    cookies = {
+        # Add your fresh cookies from browser here
+        '_v_': 'ysi54HCS7kJ%2BYOt2yswB3QXHRQ2EgdCwQMSmafP1TBhr6yfdVa0liYH%2FWOv%2Fl36WoPZGLlckmo7GhQp%2FKVN%2FjSxDyMn4r%2BnZrmgNl2FmTG3xch92%2Bv%2Fd4To%3D--NgpsLZTipod58fYT--2wrXpp7oh3hTLeBa9Vr93w%3D%3D',
+        '_dss_': '077ef6fb6a11fcc01f12fc7403961cde',
+        '_us_': 'eyJfcmFpbHMiOnsibWVzc2FnZSI6IkluWnBaWGRsWkNCa2IyTWkiLCJleHAiOm51bGwsInB1ciI6ImNvb2tpZS5fdXNfIn19--d99e89135b29409ec95f7b01021ec543a463b2ba',
+    }
     
     # OCR settings
     use_ocr = True  # Set to True for OCR, False for simple PDF
     use_premium_ocr = False  # Set to True for OCRmyPDF (premium quality), False for Tesseract (recommended)
     language = 'eng'  # OCR language: 'eng', 'fra', 'deu', 'spa', etc.
+    
+    # ============================================================================
+    # AUTHENTICATION CHECK
+    # ============================================================================
+    
+    if not cookies:
+        print("❌ No authentication cookies provided!")
+        print("💡 Please add your browser cookies to the 'cookies' dictionary above.")
+        get_cookies_from_browser()
+        return
     
     # ============================================================================
     # STEP 1: DOWNLOAD IMAGES FROM DOCSEND
@@ -39,11 +58,12 @@ def main():
     print(f"Document: {document_name}")
     print(f"Pages: 1 to {end_page if end_page else 'end'}")
     
-    downloader = DocSendImageDownloader()
+    # Create downloader with authentication
+    downloader = DocSendImageDownloader(cookies=cookies)
     image_dir = f'downloaded_images/{document_name}'
     
     # Download images
-    downloader.download_document_images(
+    downloaded_count = downloader.download_document_images(
         document_id=document_id,
         view_id=view_id,
         start_page=1,
@@ -52,16 +72,14 @@ def main():
     )
     
     # Check if images were downloaded
-    if not os.path.exists(image_dir):
-        print("❌ No images were downloaded. Please check your document ID and view ID.")
+    if downloaded_count == 0:
+        print("❌ No images were downloaded. Please check:")
+        print("   1. Your document ID and view ID are correct")
+        print("   2. Your authentication cookies are fresh and valid")
+        print("   3. You have access to the document")
         return
     
-    image_files = [f for f in os.listdir(image_dir) if f.endswith('.jpg')]
-    if not image_files:
-        print("❌ No images found in the downloaded directory.")
-        return
-    
-    print(f"✅ Downloaded {len(image_files)} images to {image_dir}")
+    print(f"✅ Successfully downloaded {downloaded_count} images to {image_dir}")
     
     # ============================================================================
     # STEP 2: CREATE SEARCHABLE PDF
