@@ -74,15 +74,20 @@ def extract_document_info_from_url(url):
     """Extract document ID and view ID from URL"""
     try:
         # Simple extraction - you might want to use urllib.parse for more robust parsing
-        if '/view/' in url and '/d/' in url:
+        if '/view/' in url:
+            view_id = document_id = None
             parts = url.split('/')
             view_index = parts.index('view')
-            d_index = parts.index('d')
-            
-            if view_index + 1 < len(parts) and d_index + 1 < len(parts):
+
+            if view_index + 1 < len(parts):
                 document_id = parts[view_index + 1]
-                view_id = parts[d_index + 1]
-                return document_id, view_id
+            
+            if '/d/' in url:
+                d_index = parts.index('d')
+                if d_index < len(parts):
+                    view_id = parts[d_index + 1]
+
+            return document_id, view_id
     except:
         pass
     

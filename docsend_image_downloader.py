@@ -70,7 +70,10 @@ class DocSendImageDownloader:
     
     def get_page_data(self, document_id, view_id, page_number):
         """Get page data from DocSend API"""
-        url = f'{self.base_url}/view/{document_id}/d/{view_id}/page_data/{page_number}'
+        if view_id:
+            url = f'{self.base_url}/view/{document_id}/d/{view_id}/page_data/{page_number}'
+        else:
+            url = f'{self.base_url}/view/{document_id}/page_data/{page_number}'
         params = {
             'viewLoadTime': int(time.time()),
             'timezoneOffset': int(time.timezone / 3600) * 3600  # Dynamic timezone offset

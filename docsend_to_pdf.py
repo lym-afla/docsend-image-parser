@@ -22,16 +22,16 @@ def main():
     # ============================================================================
     
     # Document settings
-    document_url = "https://audeo.docsend.com/view/93wdni8fvi9ch8pd/d/kg8yan5n5mcz4nf9"
+    document_url = "https://docsend.com/view/m7fwazkdwhqwgfdd"
     document_id, view_id = extract_document_info_from_url(document_url)
-    document_name = "Audeo Investment Memo - Plata Secondary"  # Name for output folder
-    end_page = 3  # Set to None for all pages, or specify end page
+    document_name = "Chatfuel deck"  # Name for output folder
+    end_page = 13  # Set to None for all pages, or specify end page
     
     # Authentication settings - ADD YOUR COOKIES HERE
     cookies = {
         # Add your fresh cookies from browser here
-        '_v_': 'ysi54HCS7kJ%2BYOt2yswB3QXHRQ2EgdCwQMSmafP1TBhr6yfdVa0liYH%2FWOv%2Fl36WoPZGLlckmo7GhQp%2FKVN%2FjSxDyMn4r%2BnZrmgNl2FmTG3xch92%2Bv%2Fd4To%3D--NgpsLZTipod58fYT--2wrXpp7oh3hTLeBa9Vr93w%3D%3D',
-        '_dss_': '077ef6fb6a11fcc01f12fc7403961cde',
+        '_v_': 'kHlKJYcMQ3QX9%2F70tmty5YaRfXdf2XH3pC8LwX7bdUuYeKwY%2FdWYxr2cmPfapZSd2IkbXTqs9eY8wDf9eO4s7QquS1DAM0PEcR7WEzq%2BYr0TpibeV%2FqvUUg%3D--fIdYgbOHFnATCBYA--wFcWR1alIp%2B0Uae2a%2BGGHQ%3D%3D',
+        '_dss_': 'af82a8af267fa0a678efd678043752ec',
         '_us_': 'eyJfcmFpbHMiOnsibWVzc2FnZSI6IkluWnBaWGRsWkNCa2IyTWkiLCJleHAiOm51bGwsInB1ciI6ImNvb2tpZS5fdXNfIn19--d99e89135b29409ec95f7b01021ec543a463b2ba',
     }
     
@@ -90,11 +90,11 @@ def main():
     # Determine output filename based on settings
     if use_ocr:
         if use_premium_ocr:
-            output_pdf = f'pdf_documents/{document_name}_searchable_premium.pdf'
+            output_pdf = f'pdf_documents/{document_name}_premium.pdf'
             print("🔍 Creating PREMIUM searchable PDF with OCRmyPDF...")
             success = create_pdf_with_ocrmypdf(image_dir, output_pdf, language, high_quality_mode=True)
         else:
-            output_pdf = f'pdf_documents/{document_name}_searchable.pdf'
+            output_pdf = f'pdf_documents/{document_name}.pdf'
             print("🔍 Creating searchable PDF with Tesseract (RECOMMENDED)...")
             success = create_pdf_with_tesseract_default(image_dir, output_pdf, language)
     else:
