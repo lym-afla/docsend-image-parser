@@ -22,16 +22,16 @@ def main():
     # ============================================================================
     
     # Document settings
-    document_url = "https://docsend.com/view/m7fwazkdwhqwgfdd"
+    document_url = "https://docsend.com/view/wt93v6hja4q5tmqf"
     document_id, view_id = extract_document_info_from_url(document_url)
-    document_name = "Chatfuel deck"  # Name for output folder
-    end_page = 13  # Set to None for all pages, or specify end page
+    document_name = "TA Ventures deck"  # Name for output folder
+    end_page = None  # Set to None for all pages, or specify end page
     
     # Authentication settings - ADD YOUR COOKIES HERE
     cookies = {
         # Add your fresh cookies from browser here
-        '_v_': 'kHlKJYcMQ3QX9%2F70tmty5YaRfXdf2XH3pC8LwX7bdUuYeKwY%2FdWYxr2cmPfapZSd2IkbXTqs9eY8wDf9eO4s7QquS1DAM0PEcR7WEzq%2BYr0TpibeV%2FqvUUg%3D--fIdYgbOHFnATCBYA--wFcWR1alIp%2B0Uae2a%2BGGHQ%3D%3D',
-        '_dss_': 'af82a8af267fa0a678efd678043752ec',
+        '_v_': 'P441clH2k%2FNOrpYa3jfKHjyzL88GqiC1qlJdYt9Cr6Mvu9dMskuyTTtXQzLpFcPM7bF02LyM3g9ulAhq3cfoLyJfbNkRnMer8iCOpAlk4QoLgRTYEEN%2FCMk%3D--9pz5RmIG8qcU4Snd--kLaXPlVFxCP5NH7Ft5UUCA%3D%3D',
+        '_dss_': 'b586fbe9f5ea7bfc94abb88090f72276',
         '_us_': 'eyJfcmFpbHMiOnsibWVzc2FnZSI6IkluWnBaWGRsWkNCa2IyTWkiLCJleHAiOm51bGwsInB1ciI6ImNvb2tpZS5fdXNfIn19--d99e89135b29409ec95f7b01021ec543a463b2ba',
     }
     

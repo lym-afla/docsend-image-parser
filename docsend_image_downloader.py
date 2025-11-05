@@ -120,7 +120,7 @@ class DocSendImageDownloader:
             return filepath
         except requests.exceptions.RequestException as e:
             print(f"❌ Error downloading image for page {page_number}: {e}")
-            return None
+            raise
 
     def download_document_images(self, document_id, view_id, start_page=1, end_page=None, output_dir='downloaded_images'):
         """Download images from a DocSend document"""
@@ -143,9 +143,13 @@ class DocSendImageDownloader:
                 
             if 'imageUrl' in page_data:
                 image_url = page_data['imageUrl']
-                result = self.download_image(image_url, output_dir, page)
-                if result:
-                    downloaded_count += 1
+                try:
+                    result = self.download_image(image_url, output_dir, page)
+                    if result:
+                        downloaded_count += 1
+                except requests.exceptions.RequestException as e:
+                    print(f"❌ No data found for page {page} - stopping download")
+                    break
             else:
                 print(f"❌ No image URL found for page {page} - stopping download")
                 break
