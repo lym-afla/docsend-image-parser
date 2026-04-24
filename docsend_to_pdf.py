@@ -22,16 +22,16 @@ def main():
     # ============================================================================
     
     # Document settings
-    document_url = "https://docsend.com/view/wt93v6hja4q5tmqf"
+    document_url = "https://docsend.com/view/894e5hbqhznabgmz/d/7mvkrggc6d3xem9w"
     document_id, view_id = extract_document_info_from_url(document_url)
-    document_name = "TA Ventures deck"  # Name for output folder
+    document_name = "202512_Klar_MBR_Monthly Business Review_Finance"  # Name for output folder
     end_page = None  # Set to None for all pages, or specify end page
     
     # Authentication settings - ADD YOUR COOKIES HERE
     cookies = {
         # Add your fresh cookies from browser here
-        '_v_': 'P441clH2k%2FNOrpYa3jfKHjyzL88GqiC1qlJdYt9Cr6Mvu9dMskuyTTtXQzLpFcPM7bF02LyM3g9ulAhq3cfoLyJfbNkRnMer8iCOpAlk4QoLgRTYEEN%2FCMk%3D--9pz5RmIG8qcU4Snd--kLaXPlVFxCP5NH7Ft5UUCA%3D%3D',
-        '_dss_': 'b586fbe9f5ea7bfc94abb88090f72276',
+        '_v_': '34gVVeGg1mrldB%2BSj%2F9rlafoms1AmXewfyF1hEzVRyakDxNkFtl06YSos0q82YZgxovp9pDv%2B3D0xvKoFvBUl0U7RFK1ZdO5QBdVZMhnxmctp0shcxr1GSk%3D--sTzDLTAMZUx6gmbQ--S0Ti52pisz1SznnG349tZg%3D%3D',
+        '_dss_': '5dce702fa1771b18287ae5cdb0026272',
         '_us_': 'eyJfcmFpbHMiOnsibWVzc2FnZSI6IkluWnBaWGRsWkNCa2IyTWkiLCJleHAiOm51bGwsInB1ciI6ImNvb2tpZS5fdXNfIn19--d99e89135b29409ec95f7b01021ec543a463b2ba',
     }
     
