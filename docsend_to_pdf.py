@@ -1,5 +1,7 @@
+import json
 import os
-import time
+from pathlib import Path
+
 from docsend_image_downloader import DocSendImageDownloader, get_cookies_from_browser
 
 # Import PDF compilation functions
@@ -9,6 +11,32 @@ from compile_to_pdf import (
     create_pdf_with_ocrmypdf
 )
 from get_cookies_helper import extract_document_info_from_url
+
+DEFAULT_COOKIES_FILE = Path(__file__).with_name("cookies.json")
+
+
+def load_cookies_from_file(filename=DEFAULT_COOKIES_FILE):
+    """Load DocSend cookies from a JSON file with a top-level cookies object."""
+    cookies_path = Path(filename)
+
+    if not cookies_path.exists():
+        print(f"❌ Cookie file not found: {cookies_path}")
+        return {}
+
+    try:
+        with cookies_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError:
+        print(f"❌ Could not parse cookie file as JSON: {cookies_path}")
+        return {}
+
+    cookies = data.get("cookies", {})
+    if not isinstance(cookies, dict):
+        print(f"❌ Cookie file must contain a top-level 'cookies' object: {cookies_path}")
+        return {}
+
+    return cookies
+
 
 def main():
     """
@@ -22,18 +50,13 @@ def main():
     # ============================================================================
     
     # Document settings
-    document_url = "https://docsend.com/view/894e5hbqhznabgmz/d/7mvkrggc6d3xem9w"
+    document_url = "https://docsend.com/view/6asqickqzuvxa27k"
     document_id, view_id = extract_document_info_from_url(document_url)
     document_name = "202512_Klar_MBR_Monthly Business Review_Finance"  # Name for output folder
     end_page = None  # Set to None for all pages, or specify end page
     
-    # Authentication settings - ADD YOUR COOKIES HERE
-    cookies = {
-        # Add your fresh cookies from browser here
-        '_v_': '34gVVeGg1mrldB%2BSj%2F9rlafoms1AmXewfyF1hEzVRyakDxNkFtl06YSos0q82YZgxovp9pDv%2B3D0xvKoFvBUl0U7RFK1ZdO5QBdVZMhnxmctp0shcxr1GSk%3D--sTzDLTAMZUx6gmbQ--S0Ti52pisz1SznnG349tZg%3D%3D',
-        '_dss_': '5dce702fa1771b18287ae5cdb0026272',
-        '_us_': 'eyJfcmFpbHMiOnsibWVzc2FnZSI6IkluWnBaWGRsWkNCa2IyTWkiLCJleHAiOm51bGwsInB1ciI6ImNvb2tpZS5fdXNfIn19--d99e89135b29409ec95f7b01021ec543a463b2ba',
-    }
+    # Authentication settings
+    cookies = load_cookies_from_file()
     
     # OCR settings
     use_ocr = True  # Set to True for OCR, False for simple PDF
@@ -46,7 +69,7 @@ def main():
     
     if not cookies:
         print("❌ No authentication cookies provided!")
-        print("💡 Please add your browser cookies to the 'cookies' dictionary above.")
+        print("💡 Please add your browser cookies to cookies.json.")
         get_cookies_from_browser()
         return
     

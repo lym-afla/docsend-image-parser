@@ -20,12 +20,14 @@ This script allows you to download images from DocSend documents by simulating b
    - Go to Application/Storage → Cookies → docsend.com
    - Copy the important cookies: `_v_`, `_dss_`, `_us_`
 
-3. **Update your script** with the cookies:
-   ```python
-   cookies = {
-       '_v_': 'your_actual_cookie_value',
-       '_dss_': 'your_actual_cookie_value',
-       '_us_': 'your_actual_cookie_value',
+3. **Create or update `cookies.json`** with the cookies:
+   ```json
+   {
+     "cookies": {
+       "_v_": "your_actual_cookie_value",
+       "_dss_": "your_actual_cookie_value",
+       "_us_": "your_actual_cookie_value"
+     }
    }
    ```
 
@@ -93,10 +95,41 @@ This will create a template file and show detailed instructions.
 
 ## Installation
 
-1. Install Python dependencies:
+1. Install Python dependencies with `pip`:
 ```bash
 pip install -r requirements.txt
 ```
+
+### Alternative: using uv
+
+If you prefer [`uv`](https://docs.astral.sh/uv/), you do not need to convert this repo to a `pyproject.toml` project. Since the repo already has `requirements.txt`, install those requirements into a local virtual environment:
+
+```bash
+uv venv
+uv pip install -r requirements.txt
+```
+
+On Windows PowerShell, activate the environment with:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+On macOS/Linux, activate it with:
+
+```bash
+source .venv/bin/activate
+```
+
+You can then run the scripts with `python ...` as shown below.
+
+If you do not want to activate the virtual environment, run commands through `uv` and point it at `requirements.txt`:
+
+```bash
+uv run --with-requirements requirements.txt python docsend_to_pdf.py
+```
+
+For a stricter environment that removes packages not listed in `requirements.txt`, you can use `uv pip sync requirements.txt` instead of `uv pip install -r requirements.txt`.
 
 2. Install Tesseract OCR:
    - **Windows**: Download from [Tesseract Wiki](https://github.com/UB-Mannheim/tesseract/wiki)
@@ -112,22 +145,30 @@ pip install -r requirements.txt
 
 ### Quick Start
 1. **Get your cookies** (see authentication section above)
-2. **Update the script** with your document info and cookies:
+2. **Update `cookies.json`** with your cookies:
+   ```json
+   {
+     "cookies": {
+       "_v_": "your_cookie_value",
+       "_dss_": "your_cookie_value",
+       "_us_": "your_cookie_value"
+     }
+   }
+   ```
+3. **Update the script** with your document info:
    ```python
    # In docsend_to_pdf.py
    document_id = "your_document_id"
    view_id = "your_view_id"
    document_name = "Your Document Name"
-   
-   cookies = {
-       '_v_': 'your_cookie_value',
-       '_dss_': 'your_cookie_value',
-       '_us_': 'your_cookie_value',
-   }
    ```
-3. **Run the script**:
+4. **Run the script**:
    ```bash
    python docsend_to_pdf.py
+   ```
+   Or, without activating a virtual environment:
+   ```bash
+   uv run --with-requirements requirements.txt python docsend_to_pdf.py
    ```
 
 ### Advanced Usage
@@ -141,6 +182,16 @@ python docsend_image_downloader.py
 python compile_to_pdf.py
 ```
 
+With `uv` and no activated environment:
+
+```bash
+# Download images only
+uv run --with-requirements requirements.txt python docsend_image_downloader.py
+
+# Create PDF from downloaded images
+uv run --with-requirements requirements.txt python compile_to_pdf.py
+```
+
 ## Configuration Options
 
 In `docsend_to_pdf.py`, you can configure:
@@ -151,13 +202,6 @@ document_id = "your_document_id"
 view_id = "your_view_id"
 document_name = "Your Document Name"
 end_page = 14  # Set to None for all pages
-
-# Authentication
-cookies = {
-    '_v_': 'your_cookie_value',
-    '_dss_': 'your_cookie_value',
-    '_us_': 'your_cookie_value',
-}
 
 # OCR settings
 use_ocr = True  # Set to False for simple PDF without OCR
