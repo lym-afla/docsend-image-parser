@@ -1,233 +1,243 @@
-import requests
-import os
+"""Download DocSend page images with byte and sequence validation."""
+
+import io
 import time
-import json
-from urllib.parse import urlparse, parse_qs
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+from PIL import Image
+
+_REQUEST_TIMEOUT = (5, 30)
+_IMAGE_EXTENSIONS = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp"}
+
+
+@dataclass(frozen=True)
+class PageDataResult:
+    """Bounded result for one page-data request.
+
+    ``status`` is ``available``, ``end``, or ``error``. Signed image URLs are
+    kept internal and must never be serialized by callers.
+    """
+
+    status: str
+    image_url: str | None
+    expected_pages: int | None
+    detail_code: str
+
+
+@dataclass(frozen=True)
+class DownloadResult:
+    """Validated page-download outcome without sensitive request details."""
+
+    status: str
+    downloaded_pages: int
+    expected_pages: int | None
+    detail_code: str
+
+
+def validate_image_bytes(content: bytes) -> str | None:
+    """Return a safe extension for a verified JPEG, PNG, or WebP image.
+
+    Validation requires both the format's binary signature and successful
+    Pillow decoding. HTTP ``Content-Type`` is intentionally irrelevant.
+    """
+    if content.startswith(b"\xff\xd8\xff"):
+        expected_format = "JPEG"
+    elif content.startswith(b"\x89PNG\r\n\x1a\n"):
+        expected_format = "PNG"
+    elif len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        expected_format = "WEBP"
+    else:
+        return None
+
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            image.verify()
+            actual_format = image.format
+        with Image.open(io.BytesIO(content)) as image:
+            image.load()
+    except OSError, SyntaxError, ValueError:
+        return None
+
+    if actual_format != expected_format:
+        return None
+    return _IMAGE_EXTENSIONS[expected_format]
+
 
 class DocSendImageDownloader:
-    def __init__(self, cookies=None, user_agent=None):
-        """
-        Initialize DocSend image downloader with authentication
-        
-        Args:
-            cookies (dict): Dictionary of cookies from browser session
-            user_agent (str): User agent string (optional)
-        """
-        self.session = requests.Session()
-        
-        # Set default headers that mimic a real browser
+    """Requests-based downloader that validates every saved page image."""
+
+    def __init__(self, cookies: Mapping[str, str] | None = None, user_agent=None, session=None):
+        """Initialize with optional cookies and an injectable HTTP session."""
+        self.session = session or requests.Session()
         self.headers = {
-            'User-Agent': user_agent or 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Referer': 'https://docsend.com/',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin',
-            'Connection': 'keep-alive',
-            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"'
+            "User-Agent": user_agent
+            or (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 Chrome/120 Safari/537.36"
+            ),
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": "https://docsend.com/",
         }
-        
-        self.base_url = 'https://docsend.com'
-        
-        # Set cookies if provided
+        self.base_url = "https://docsend.com"
         if cookies:
-            for name, value in cookies.items():
-                self.session.cookies.set(name, value, domain='.docsend.com')
-        
-        # Initialize without hardcoded cookies - they should be provided by user
-    
+            self.session.cookies.update(cookies)
+
     def extract_document_info_from_url(self, docsend_url):
-        """
-        Extract document_id and view_id from a DocSend URL
-        
-        Args:
-            docsend_url (str): Full DocSend URL
-            
-        Returns:
-            tuple: (document_id, view_id) or (None, None) if parsing fails
-        """
+        """Return document and optional view identifiers from a DocSend URL."""
         try:
-            # Parse the URL
-            parsed = urlparse(docsend_url)
-            path_parts = parsed.path.strip('/').split('/')
-            
-            # DocSend URL format: /view/{document_id}/d/{view_id}
-            if len(path_parts) >= 4 and path_parts[0] == 'view':
-                document_id = path_parts[1]
-                view_id = path_parts[3]
-                return document_id, view_id
-            else:
-                print("❌ Could not parse DocSend URL. Expected format: https://docsend.com/view/{document_id}/d/{view_id}")
-                return None, None
-        except Exception as e:
-            print(f"❌ Error parsing URL: {e}")
-            return None, None
-    
-    def get_page_data(self, document_id, view_id, page_number):
-        """Get page data from DocSend API"""
+            parts = urlparse(docsend_url).path.strip("/").split("/")
+            if len(parts) >= 2 and parts[0] == "view" and parts[1]:
+                view_id = parts[3] if len(parts) >= 4 and parts[2] == "d" else ""
+                return parts[1], view_id
+        except TypeError, ValueError:
+            pass
+        return None, None
+
+    def fetch_page_data(self, document_id, view_id, page_number):
+        """Fetch one page's metadata and classify its availability safely."""
         if view_id:
-            url = f'{self.base_url}/view/{document_id}/d/{view_id}/page_data/{page_number}'
+            url = f"{self.base_url}/view/{document_id}/d/{view_id}/page_data/{page_number}"
         else:
-            url = f'{self.base_url}/view/{document_id}/page_data/{page_number}'
-        params = {
-            'viewLoadTime': int(time.time()),
-            'timezoneOffset': int(time.timezone / 3600) * 3600  # Dynamic timezone offset
-        }
-        
+            url = f"{self.base_url}/view/{document_id}/page_data/{page_number}"
         try:
-            response = self.session.get(url, headers=self.headers, params=params)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 403:
-                print(f"❌ 403 Forbidden - Authentication required!")
-                print("💡 Please provide fresh cookies from your browser session.")
-                print("   See instructions in the README for how to get cookies.")
-            elif e.response.status_code == 404:
-                print(f"❌ 404 Not Found - Page {page_number} doesn't exist")
-            else:
-                print(f"❌ HTTP Error {e.response.status_code}: {e}")
-            if hasattr(e.response, 'text'):
-                print(f"Response content: {e.response.text}")
+            response = self.session.get(
+                url,
+                headers=self.headers,
+                params={"viewLoadTime": int(time.time()), "timezoneOffset": int(time.timezone)},
+                timeout=_REQUEST_TIMEOUT,
+            )
+        except requests.Timeout:
+            return PageDataResult("error", None, None, "request_timeout")
+        except requests.RequestException:
+            return PageDataResult("error", None, None, "request_error")
+
+        if response.status_code == 404:
+            return PageDataResult("end", None, None, "end_of_document")
+        if response.status_code in (401, 403):
+            return PageDataResult("error", None, None, "authentication_required")
+        if response.status_code < 200 or response.status_code >= 300:
+            return PageDataResult("error", None, None, "http_error")
+        try:
+            payload = response.json()
+        except TypeError, ValueError:
+            return PageDataResult("error", None, None, "invalid_page_data")
+        if not isinstance(payload, Mapping) or not isinstance(payload.get("imageUrl"), str):
+            return PageDataResult("error", None, _page_count(payload), "missing_image_url")
+        return PageDataResult(
+            "available", payload["imageUrl"], _page_count(payload), "page_available"
+        )
+
+    def get_page_data(self, document_id, view_id, page_number):
+        """Return legacy page data shape for callers that predate validation."""
+        result = self.fetch_page_data(document_id, view_id, page_number)
+        if result.status != "available":
             return None
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Error fetching page data: {e}")
-            return None
+        return {"imageUrl": result.image_url, "pageCount": result.expected_pages}
+
+    def fetch_image_bytes(self, image_url):
+        """Fetch signed image bytes, raising only a bounded request exception."""
+        response = self.session.get(image_url, headers=self.headers, timeout=_REQUEST_TIMEOUT)
+        response.raise_for_status()
+        return response.content
 
     def download_image(self, image_url, output_dir, page_number):
-        """Download image from the provided URL"""
+        """Download and save one image only after byte-level validation."""
         try:
-            response = self.session.get(image_url, headers=self.headers)
-            response.raise_for_status()
-            
-            # Create output directory if it doesn't exist
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Generate filename from URL or use page number
-            filename = f'page_{page_number:03d}.jpg'
-            filepath = os.path.join(output_dir, filename)
-            
-            # Save the image
-            with open(filepath, 'wb') as f:
-                f.write(response.content)
-            
-            print(f"✅ Downloaded page {page_number}")
-            return filepath
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Error downloading image for page {page_number}: {e}")
-            raise
+            content = self.fetch_image_bytes(image_url)
+        except requests.RequestException:
+            return None
+        extension = validate_image_bytes(content)
+        if extension is None:
+            return None
+        destination = Path(output_dir)
+        destination.mkdir(parents=True, exist_ok=True)
+        path = destination / f"page_{page_number:03d}{extension}"
+        path.write_bytes(content)
+        return str(path)
 
-    def download_document_images(self, document_id, view_id, start_page=1, end_page=None, output_dir='downloaded_images'):
-        """Download images from a DocSend document"""
-        print(f"🔍 Starting download for document {document_id}")
-        print(f"📁 Output directory: {output_dir}")
-        
-        downloaded_count = 0
-        page = start_page
-        
-        while True:
-            if end_page and page > end_page:
+    def download_document_images_verified(
+        self, document_id, view_id, output_dir, expected_pages=None
+    ):
+        """Download a continuous page sequence and return validated counts.
+
+        A declared count is authoritative. Without one, only a page-data 404 is
+        treated as the documented end of the document.
+        """
+        downloaded = 0
+        page_number = 1
+        known_count = (
+            expected_pages if isinstance(expected_pages, int) and expected_pages > 0 else None
+        )
+
+        while known_count is None or page_number <= known_count:
+            page = self.fetch_page_data(document_id, view_id, page_number)
+            if page.expected_pages:
+                if known_count is not None and known_count != page.expected_pages:
+                    return DownloadResult(
+                        "incomplete", downloaded, known_count, "page_count_changed"
+                    )
+                known_count = page.expected_pages
+
+            if page.status == "end":
+                if page_number == 1:
+                    return DownloadResult("incomplete", 0, known_count, "page_1_unavailable")
+                if known_count is not None and page_number <= known_count:
+                    return DownloadResult("incomplete", downloaded, known_count, "missing_page")
                 break
-                
-            print(f"📄 Processing page {page}...")
-            page_data = self.get_page_data(document_id, view_id, page)
-            
-            if not page_data:
-                print(f"❌ No data found for page {page} - stopping download")
-                break
-                
-            if 'imageUrl' in page_data:
-                image_url = page_data['imageUrl']
-                try:
-                    result = self.download_image(image_url, output_dir, page)
-                    if result:
-                        downloaded_count += 1
-                except requests.exceptions.RequestException as e:
-                    print(f"❌ No data found for page {page} - stopping download")
-                    break
-            else:
-                print(f"❌ No image URL found for page {page} - stopping download")
-                break
-                
-            page += 1
-            time.sleep(0.5)  # Small delay to be respectful to the server
-        
-        print(f"🎉 Download complete! Downloaded {downloaded_count} pages.")
-        return downloaded_count
+            if page.status != "available" or not page.image_url:
+                code = "page_1_unavailable" if page_number == 1 else "missing_page"
+                return DownloadResult("incomplete", downloaded, known_count, code)
+            if self.download_image(page.image_url, output_dir, page_number) is None:
+                code = "invalid_image_bytes" if page_number == 1 else "missing_page"
+                return DownloadResult("incomplete", downloaded, known_count, code)
+            downloaded += 1
+            page_number += 1
+
+        if downloaded == 0:
+            return DownloadResult("incomplete", 0, known_count, "page_1_unavailable")
+        if known_count is not None and downloaded != known_count:
+            return DownloadResult("incomplete", downloaded, known_count, "page_count_mismatch")
+        return DownloadResult(
+            "complete", downloaded, known_count or downloaded, "download_complete"
+        )
+
+    def download_document_images(
+        self, document_id, view_id, start_page=1, end_page=None, output_dir="downloaded_images"
+    ):
+        """Legacy count-only wrapper retained for the original converter."""
+        if start_page != 1:
+            return 0
+        result = self.download_document_images_verified(
+            document_id, view_id, output_dir, expected_pages=end_page
+        )
+        return result.downloaded_pages
+
+
+def _page_count(payload):
+    """Extract a positive page count from known DocSend response keys."""
+    if not isinstance(payload, Mapping):
+        return None
+    for key in ("pageCount", "page_count", "numPages"):
+        value = payload.get(key)
+        if isinstance(value, int) and value > 0:
+            return value
+    return None
+
 
 def get_cookies_from_browser():
-    """
-    Instructions for getting cookies from browser
-    """
-    print("\n" + "="*60)
-    print("🔐 AUTHENTICATION SETUP REQUIRED")
-    print("="*60)
-    print("DocSend requires authentication. Follow these steps:")
-    print()
-    print("1. Open your browser and go to the DocSend document")
-    print("2. Complete any authentication steps (email verification, etc.)")
-    print("3. Open Developer Tools (F12)")
-    print("4. Go to Application/Storage tab")
-    print("5. Look for Cookies under the docsend.com domain")
-    print("6. Copy the following cookies:")
-    print("   - _v_")
-    print("   - _dss_")
-    print("   - _us_")
-    print("   - Any other cookies that look important")
-    print()
-    print("Then update the cookies in your script or pass them as parameters.")
-    print("="*60)
+    """Print non-sensitive directions for supplying browser cookies."""
+    print("Provide authorized DocSend browser cookies through a cookie JSON file.")
+
 
 def main():
-    """Example usage with authentication"""
-    
-    # Check if we have proper authentication
-    print("🔍 DocSend Image Downloader")
-    print("=" * 40)
-    
-    # You can either:
-    # 1. Update the cookies here directly
-    # 2. Pass them as parameters when creating the downloader
-    
-    # Option 1: Update cookies here (replace with your fresh cookies)
-    cookies = {
-        # 'cookie_name': 'cookie_value',
-        # Add your cookies here after getting them from browser
-    }
-    
-    # Option 2: Create downloader with cookies
-    if cookies:
-        downloader = DocSendImageDownloader(cookies=cookies)
-    else:
-        print("⚠️  No cookies provided - authentication will likely fail")
-        get_cookies_from_browser()
-        return
-    
-    # Extract document info from URL or specify manually
-    docsend_url = "https://docsend.com/view/93wdni8fvi9ch8pd/d/gss34jz44akupkjr"
-    document_id, view_id = downloader.extract_document_info_from_url(docsend_url)
-    
-    if not document_id or not view_id:
-        print("❌ Could not extract document information from URL")
-        return
-    
-    print(f"📄 Document ID: {document_id}")
-    print(f"👁️  View ID: {view_id}")
-    
-    # Download images
-    output_dir = 'downloaded_images/test_document'
-    downloader.download_document_images(
-        document_id=document_id,
-        view_id=view_id,
-        start_page=1,
-        end_page=5,  # Adjust as needed
-        output_dir=output_dir
-    )
+    """Keep the historical module entry point informational and secret-safe."""
+    get_cookies_from_browser()
+
 
 if __name__ == "__main__":
-    main() 
+    main()
