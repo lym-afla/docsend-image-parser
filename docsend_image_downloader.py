@@ -63,7 +63,7 @@ def validate_image_bytes(content: bytes) -> str | None:
             actual_format = image.format
         with Image.open(io.BytesIO(content)) as image:
             image.load()
-    except OSError, SyntaxError, ValueError:
+    except (OSError, SyntaxError, ValueError):
         return None
 
     if actual_format != expected_format:
@@ -98,7 +98,7 @@ class DocSendImageDownloader:
             if len(parts) >= 2 and parts[0] == "view" and parts[1]:
                 view_id = parts[3] if len(parts) >= 4 and parts[2] == "d" else ""
                 return parts[1], view_id
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
         return None, None
 
@@ -128,7 +128,7 @@ class DocSendImageDownloader:
             return PageDataResult("error", None, None, "http_error")
         try:
             payload = response.json()
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return PageDataResult("error", None, None, "invalid_page_data")
         if not isinstance(payload, Mapping) or not isinstance(payload.get("imageUrl"), str):
             return PageDataResult("error", None, _page_count(payload), "missing_image_url")

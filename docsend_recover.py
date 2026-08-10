@@ -256,7 +256,7 @@ def _validate_pdf(path):
                 return None, "invalid_pdf_signature"
             handle.seek(0)
             return len(PdfReader(handle).pages), "pdf_valid"
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return None, "invalid_pdf"
     except Exception:
         return None, "invalid_pdf"
@@ -277,7 +277,7 @@ def main(input_stream: TextIO = sys.stdin, output_stream: TextIO = sys.stdout) -
         else:
             payload = json.loads(raw)
             result = recover_document(payload)
-    except json.JSONDecodeError, UnicodeError:
+    except (json.JSONDecodeError, UnicodeError):
         result = _result(detail_code="invalid_json")
     except Exception:
         result = _result(detail_code="command_error")
