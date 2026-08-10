@@ -6,10 +6,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import requests
 from docsend_access import AccessProbeResult
 from docsend_image_downloader import (
     DocSendImageDownloader,
     DownloadResult,
+    ImageFetchError,
     PageDataResult,
     validate_image_bytes,
 )
@@ -69,6 +71,21 @@ class ImageValidationTests(unittest.TestCase):
 
     def test_rejects_invalid_bytes(self):
         self.assertIsNone(validate_image_bytes(b"binary/octet-stream but not an image"))
+
+    def test_signed_image_request_exception_is_sanitized(self):
+        signed_url = "https://signed.example/page?secret=credential"
+
+        class FailingSession:
+            def get(self, url, **kwargs):
+                raise requests.ConnectionError(f"failed to fetch {url}")
+
+        downloader = DocSendImageDownloader(session=FailingSession())
+
+        with self.assertRaises(ImageFetchError) as caught:
+            downloader.fetch_image_bytes(signed_url)
+
+        self.assertEqual(str(caught.exception), "image_request_failed")
+        self.assertNotIn(signed_url, repr(caught.exception))
 
 
 class ContinuousDownloadTests(unittest.TestCase):
@@ -154,6 +171,37 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(result["detail_code"], "pdf_page_count_mismatch")
             self.assertEqual(result["pdf_page_count"], 2)
             self.assertTrue((root / "images" / "page_003.webp").is_file())
+
+    def test_stale_target_is_not_validated_when_compiler_writes_elsewhere(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            payload = self.payload(root)
+            target_pdf = Path(payload["target_pdf_path"])
+            (root / "cookies.json").write_text('{"cookies": {}}', encoding="utf-8")
+            write_pdf(target_pdf, 3)
+
+            def redirected_compiler(image_dir, output_pdf, **kwargs):
+                write_pdf(Path(output_pdf).with_stem("document_alternative"), 3)
+                return True
+
+            result = recover_document(
+                payload,
+                probe=lambda *args, **kwargs: AccessProbeResult(
+                    "authorized", 3, "page_1_available"
+                ),
+                downloader_factory=lambda **kwargs: FixtureDownloader(
+                    {
+                        1: (3, image_bytes("JPEG")),
+                        2: (3, image_bytes("PNG")),
+                        3: (3, image_bytes("WEBP")),
+                    }
+                ),
+                compiler=redirected_compiler,
+            )
+
+        self.assertEqual(result["status"], "incomplete")
+        self.assertFalse(result["pdf_created"])
+        self.assertEqual(result["detail_code"], "invalid_pdf")
 
     def test_successful_three_page_ocr_free_recovery(self):
         with tempfile.TemporaryDirectory() as tmpdir:

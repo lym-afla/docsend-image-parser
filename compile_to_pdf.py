@@ -4,7 +4,6 @@ import glob
 import os
 import shutil
 import subprocess
-from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
@@ -103,10 +102,7 @@ def create_pdf_with_ocrmypdf(image_dir, output_pdf, language="eng", high_quality
         except PermissionError:
             print(f"⚠️  Warning: Could not remove existing file {output_pdf}")
             print("Please close any PDF viewers and try again, or use a different filename")
-            # Try with timestamp to avoid conflicts
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_pdf = output_pdf.replace(".pdf", f"_{timestamp}.pdf")
-            print(f"Using alternative filename: {output_pdf}")
+            return False
 
     try:
         # Run OCRmyPDF with Windows-compatible settings (no unpaper dependency)

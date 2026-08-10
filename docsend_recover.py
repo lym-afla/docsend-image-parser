@@ -153,6 +153,17 @@ def recover_document(
     target_pdf = Path(normalized["target_pdf_path"])
     compile_function = compiler or _compile_pdf
     try:
+        target_pdf.unlink(missing_ok=True)
+    except OSError:
+        return _result(
+            status="incomplete",
+            probe_status="authorized",
+            downloaded_pages=download.downloaded_pages,
+            expected_pages=download.expected_pages,
+            ocr_mode=ocr_mode,
+            detail_code="target_pdf_unavailable",
+        )
+    try:
         with redirect_stdout(_DiscardOutput()):
             created = bool(
                 compile_function(

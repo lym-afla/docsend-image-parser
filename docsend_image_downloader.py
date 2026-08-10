@@ -14,6 +14,10 @@ _REQUEST_TIMEOUT = (5, 30)
 _IMAGE_EXTENSIONS = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp"}
 
 
+class ImageFetchError(Exception):
+    """Bounded signed-image request failure without URL or response details."""
+
+
 @dataclass(frozen=True)
 class PageDataResult:
     """Bounded result for one page-data request.
@@ -140,16 +144,21 @@ class DocSendImageDownloader:
         return {"imageUrl": result.image_url, "pageCount": result.expected_pages}
 
     def fetch_image_bytes(self, image_url):
-        """Fetch signed image bytes, raising only a bounded request exception."""
-        response = self.session.get(image_url, headers=self.headers, timeout=_REQUEST_TIMEOUT)
-        response.raise_for_status()
+        """Fetch signed image bytes or raise a sanitized ``ImageFetchError``."""
+        try:
+            response = self.session.get(
+                image_url, headers=self.headers, timeout=_REQUEST_TIMEOUT
+            )
+            response.raise_for_status()
+        except requests.RequestException:
+            raise ImageFetchError("image_request_failed") from None
         return response.content
 
     def download_image(self, image_url, output_dir, page_number):
         """Download and save one image only after byte-level validation."""
         try:
             content = self.fetch_image_bytes(image_url)
-        except requests.RequestException:
+        except ImageFetchError:
             return None
         extension = validate_image_bytes(content)
         if extension is None:
