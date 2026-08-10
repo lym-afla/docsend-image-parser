@@ -70,6 +70,39 @@ def _page_image_files(image_dir):
     return image_files
 
 
+def create_pdf_from_image(image_file, output_pdf):
+    """Create one image-only PDF page from the specific supplied image file.
+
+    Args:
+        image_file: Source image path for the single output page.
+        output_pdf: Destination PDF path, optionally without a parent directory.
+
+    Returns:
+        True after the one-page PDF has been written.
+    """
+    output_parent = os.path.dirname(output_pdf)
+    if output_parent:
+        os.makedirs(output_parent, exist_ok=True)
+
+    with Image.open(image_file) as image:
+        image_width, image_height = image.size
+
+    page_width = image_width * 72.0 / 300
+    page_height = image_height * 72.0 / 300
+    pdf = canvas.Canvas(output_pdf, pagesize=(page_width, page_height))
+    pdf.drawImage(
+        image_file,
+        0,
+        0,
+        width=page_width,
+        height=page_height,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    pdf.save()
+    return True
+
+
 def create_pdf_with_ocrmypdf(image_dir, output_pdf, language="eng", high_quality_mode=False):
     """
     Create a searchable PDF using OCRmyPDF - MUCH BETTER OCR QUALITY!
@@ -221,8 +254,10 @@ def create_pdf_with_tesseract_default(image_dir, output_pdf, language="eng"):
             print(f"No JPG images found in {image_dir}")
             return False
 
-        # Create output directory
-        os.makedirs(os.path.dirname(output_pdf), exist_ok=True)
+        # Create output directory when the target includes one.
+        output_parent = os.path.dirname(output_pdf)
+        if output_parent:
+            os.makedirs(output_parent, exist_ok=True)
 
         # Create PDF with OCR
         pdf_writer = PdfWriter()
@@ -232,15 +267,14 @@ def create_pdf_with_tesseract_default(image_dir, output_pdf, language="eng"):
 
             try:
                 # Get OCR data with optimized settings
-                img = Image.open(image_file)
-
-                # Use Tesseract to create PDF with embedded text
-                pdf_bytes = pytesseract.image_to_pdf_or_hocr(
-                    img,
-                    extension="pdf",
-                    lang=language,
-                    config="--psm 1 --oem 3",  # Optimized OCR settings
-                )
+                with Image.open(image_file) as img:
+                    # Use Tesseract to create PDF with embedded text
+                    pdf_bytes = pytesseract.image_to_pdf_or_hocr(
+                        img,
+                        extension="pdf",
+                        lang=language,
+                        config="--psm 1 --oem 3",  # Optimized OCR settings
+                    )
 
                 # Create PDF page from OCR
                 pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
@@ -249,9 +283,9 @@ def create_pdf_with_tesseract_default(image_dir, output_pdf, language="eng"):
             except Exception as e:
                 print(f"Warning: OCR failed for page {i}: {str(e)}")
                 # Fall back to image-only page
-                temp_single_pdf = f"temp_page_{i}.pdf"
-                if create_pdf_without_ocr(os.path.dirname(image_file), temp_single_pdf):
-                    page_reader = PdfReader(temp_single_pdf)
+                temp_single_pdf = f"{output_pdf}.page_{i}.tmp.pdf"
+                if create_pdf_from_image(image_file, temp_single_pdf):
+                    page_reader = PdfReader(io.BytesIO(Path(temp_single_pdf).read_bytes()))
                     pdf_writer.add_page(page_reader.pages[0])
                     os.remove(temp_single_pdf)
 
@@ -309,8 +343,10 @@ def create_pdf_with_tesseract_fallback(image_dir, output_pdf, language="eng"):
             print(f"No JPG images found in {image_dir}")
             return False
 
-        # Create output directory
-        os.makedirs(os.path.dirname(output_pdf), exist_ok=True)
+        # Create output directory when the target includes one.
+        output_parent = os.path.dirname(output_pdf)
+        if output_parent:
+            os.makedirs(output_parent, exist_ok=True)
 
         # Create PDF with OCR
         pdf_writer = PdfWriter()
@@ -320,8 +356,10 @@ def create_pdf_with_tesseract_fallback(image_dir, output_pdf, language="eng"):
 
             try:
                 # Get OCR data
-                img = Image.open(image_file)
-                pdf_bytes = pytesseract.image_to_pdf_or_hocr(img, extension="pdf", lang=language)
+                with Image.open(image_file) as img:
+                    pdf_bytes = pytesseract.image_to_pdf_or_hocr(
+                        img, extension="pdf", lang=language
+                    )
 
                 # Create PDF page from OCR
                 pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
@@ -330,11 +368,12 @@ def create_pdf_with_tesseract_fallback(image_dir, output_pdf, language="eng"):
             except Exception as e:
                 print(f"Warning: OCR failed for page {i}: {str(e)}")
                 # Fall back to image-only page
-                if not create_pdf_without_ocr(os.path.dirname(image_file), f"temp_page_{i}.pdf"):
+                temp_single_pdf = f"{output_pdf}.page_{i}.tmp.pdf"
+                if not create_pdf_from_image(image_file, temp_single_pdf):
                     continue
-                page_reader = PdfReader(f"temp_page_{i}.pdf")
+                page_reader = PdfReader(io.BytesIO(Path(temp_single_pdf).read_bytes()))
                 pdf_writer.add_page(page_reader.pages[0])
-                os.remove(f"temp_page_{i}.pdf")
+                os.remove(temp_single_pdf)
 
         # Save final PDF
         with open(output_pdf, "wb") as output_file:

@@ -3,10 +3,9 @@
 import json
 import os
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
-
 
 PARSER_COOKIE_KEYS = ("_v_", "_dss_", "_us_")
 METADATA_KEYS = ("updated_at", "source", "docsend_host", "document_id", "view_id")
@@ -102,8 +101,11 @@ def replace_cookie_document(
     except OSError as error:
         raise CookieStoreError("Could not atomically replace cookie document.") from error
     finally:
-        if temporary_path is not None and temporary_path.exists():
-            temporary_path.unlink()
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _is_string_mapping(value: object) -> bool:

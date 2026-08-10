@@ -58,6 +58,31 @@ class CookieStoreTests(unittest.TestCase):
                     )
             self.assertIn('"old"', path.read_text(encoding="utf-8"))
 
+    def test_cleanup_failure_does_not_mask_bounded_replace_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "cookies.json"
+            original = '{"cookies":{"_v_":"old"}}'
+            path.write_text(original, encoding="utf-8")
+            caught = None
+
+            with patch(
+                "docsend_cookie_store.os.replace", side_effect=OSError("replace failed")
+            ), patch(
+                "docsend_cookie_store.Path.unlink", side_effect=OSError("cleanup failed")
+            ):
+                try:
+                    replace_cookie_document(path, {"_v_": "new"}, self._metadata())
+                except Exception as error:
+                    caught = error
+
+            self.assertIsNotNone(caught)
+            self.assertIsInstance(caught, CookieStoreError)
+            self.assertEqual(
+                str(caught), "Could not atomically replace cookie document."
+            )
+            self.assertIsInstance(caught.__cause__, OSError)
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+
     def test_replace_persists_only_parser_cookies_and_approved_metadata(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "cookies.json"

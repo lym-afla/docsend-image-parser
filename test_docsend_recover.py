@@ -4,7 +4,10 @@ import io
 import json
 import tempfile
 import unittest
+from contextlib import ExitStack, chdir
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import requests
 from docsend_access import AccessProbeResult
@@ -34,6 +37,16 @@ def write_pdf(path: Path, page_count: int) -> None:
         writer.add_blank_page(width=72, height=72)
     with path.open("wb") as handle:
         writer.write(handle)
+
+
+def pdf_bytes(page_count: int) -> bytes:
+    """Return a valid in-memory PDF fixture with blank pages."""
+    buffer = io.BytesIO()
+    writer = PdfWriter()
+    for _ in range(page_count):
+        writer.add_blank_page(width=72, height=72)
+    writer.write(buffer)
+    return buffer.getvalue()
 
 
 class FixtureDownloader(DocSendImageDownloader):
@@ -259,6 +272,58 @@ class RecoveryTests(unittest.TestCase):
                 "detail_code": "recovery_complete",
             },
         )
+
+    def test_tesseract_recovery_supports_bare_output_filename(self):
+        self._assert_bare_output_filename_recovery("tesseract")
+
+    def test_ocrmypdf_tesseract_fallback_supports_bare_output_filename(self):
+        self._assert_bare_output_filename_recovery("ocrmypdf")
+
+    def _assert_bare_output_filename_recovery(self, ocr_mode):
+        """Recover one page through mocked OCR boundaries into the current directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            payload = self.payload(root)
+            payload["target_pdf_path"] = "recovered-document.pdf"
+            payload["ocr_mode"] = ocr_mode
+            (root / "cookies.json").write_text('{"cookies": {}}', encoding="utf-8")
+
+            patches = [
+                patch(
+                    "compile_to_pdf.os.path.exists",
+                    side_effect=lambda path: str(path).lower().endswith("tesseract.exe"),
+                ),
+                patch("pytesseract.image_to_pdf_or_hocr", return_value=pdf_bytes(1)),
+            ]
+            if ocr_mode == "ocrmypdf":
+                patches.extend(
+                    [
+                        patch("compile_to_pdf.shutil.which", return_value="ocrmypdf"),
+                        patch(
+                            "compile_to_pdf.subprocess.run",
+                            return_value=SimpleNamespace(
+                                returncode=1, stderr="synthetic OCR failure"
+                            ),
+                        ),
+                    ]
+                )
+
+            with chdir(root), ExitStack() as stack:
+                for active_patch in patches:
+                    stack.enter_context(active_patch)
+                result = recover_document(
+                    payload,
+                    probe=lambda *_args, **_kwargs: AccessProbeResult(
+                        "authorized", 1, "page_1_available"
+                    ),
+                    downloader_factory=lambda **_kwargs: FixtureDownloader(
+                        {1: (1, image_bytes("PNG"))}
+                    ),
+                )
+
+            self.assertEqual(result["status"], "success")
+            self.assertEqual(result["pdf_page_count"], 1)
+            self.assertTrue((root / "recovered-document.pdf").is_file())
 
     def test_command_output_is_one_bounded_json_object(self):
         output = io.StringIO()

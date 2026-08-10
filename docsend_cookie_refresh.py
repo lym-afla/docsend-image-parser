@@ -71,14 +71,18 @@ Probe = Callable[[Mapping[str, str], str, str], AccessProbeResult]
 
 
 class PlaywrightBrowserAuthorizer:
-    """Interactive Chrome authorizer that stops at CAPTCHA and OTP gates."""
+    """Interactive Chrome authorizer with bounded form and human-gate handling."""
+
+    _MAX_AUTHORIZATION_STEPS = 6
+    _HUMAN_INTERACTION_POLLS = 60
+    _HUMAN_POLL_INTERVAL_MS = 1_000
 
     def authorize(self, request: CookieRefreshRequest) -> BrowserAuthorizationResult:
         """Navigate to one reviewed URL and collect only parser cookies on viewer success.
 
         The method never logs or returns credentials, input values, page text, or
-        full browser cookie objects. CAPTCHA and OTP gates are reported for a
-        human to complete; they are never bypassed.
+        full browser cookie objects. CAPTCHA and OTP gates keep the visible
+        browser open for a bounded human-completion window and are never bypassed.
         """
         try:
             from playwright.sync_api import sync_playwright
@@ -92,43 +96,36 @@ class PlaywrightBrowserAuthorizer:
                 page = context.new_page()
                 try:
                     page.goto(request.url, wait_until="domcontentloaded", timeout=30_000)
-                    if self._viewer_ready(page, timeout=2_000):
-                        return self._authorized_cookies(context.cookies(), request.url)
+                    submitted_steps: set[str] = set()
+                    for _ in range(self._MAX_AUTHORIZATION_STEPS):
+                        if self._viewer_ready(page, timeout=2_000):
+                            return self._authorized_cookies(context.cookies(), request.url)
 
-                    marker = self._interaction_marker(page)
-                    if marker:
-                        return BrowserAuthorizationResult("user_interaction_required", {}, marker)
+                        marker = self._interaction_marker(page)
+                        if marker:
+                            if self._wait_for_human_completion(page):
+                                return self._authorized_cookies(
+                                    context.cookies(), request.url
+                                )
+                            remaining_marker = self._interaction_marker(page)
+                            if remaining_marker:
+                                return BrowserAuthorizationResult(
+                                    "user_interaction_required", {}, remaining_marker
+                                )
+                            continue
 
-                    submitted = False
-                    if request.email:
-                        email_input = self._first_input(
-                            page,
-                            "email",
-                            "input[type='email'], input[name*='email' i], input[id*='email' i]",
+                        filled_steps = self._fill_available_step(
+                            page, request, submitted_steps
                         )
-                        if email_input is not None:
-                            email_input.fill(request.email)
-                            submitted = True
-                    if request.passcode:
-                        passcode_input = self._first_input(
-                            page,
-                            "passcode|password",
-                            "input[type='password'], input[name*='passcode' i], "
-                            "input[id*='passcode' i], input[name*='password' i]",
-                        )
-                        if passcode_input is not None:
-                            passcode_input.fill(request.passcode)
-                            submitted = True
-                    if submitted:
-                        submit = page.locator("button[type='submit'], input[type='submit']").first
-                        if submit.count():
-                            submit.click()
+                        if filled_steps:
+                            submit = page.locator(
+                                "button[type='submit'], input[type='submit']"
+                            ).first
+                            if submit.count():
+                                submit.click()
+                                submitted_steps.update(filled_steps)
+                        page.wait_for_timeout(500)
 
-                    if self._viewer_ready(page, timeout=15_000):
-                        return self._authorized_cookies(context.cookies(), request.url)
-                    marker = self._interaction_marker(page)
-                    if marker:
-                        return BrowserAuthorizationResult("user_interaction_required", {}, marker)
                     return BrowserAuthorizationResult(
                         "authentication_required", {}, "authorization_gate_not_completed"
                     )
@@ -161,11 +158,50 @@ class PlaywrightBrowserAuthorizer:
         except Exception:
             return False
 
+    def _fill_available_step(
+        self,
+        page: object,
+        request: CookieRefreshRequest,
+        submitted_steps: set[str],
+    ) -> set[str]:
+        """Fill each approved authorization value at most once per browser flow."""
+        filled_steps: set[str] = set()
+        if request.email and "email" not in submitted_steps:
+            email_input = self._first_input(
+                page,
+                "email",
+                "input[type='email'], input[name*='email' i], input[id*='email' i]",
+            )
+            if email_input is not None:
+                email_input.fill(request.email)
+                filled_steps.add("email")
+        if request.passcode and "passcode" not in submitted_steps:
+            passcode_input = self._first_input(
+                page,
+                "passcode|password",
+                "input[type='password'], input[name*='passcode' i], "
+                "input[id*='passcode' i], input[name*='password' i]",
+            )
+            if passcode_input is not None:
+                passcode_input.fill(request.passcode)
+                filled_steps.add("passcode")
+        return filled_steps
+
+    def _wait_for_human_completion(self, page: object) -> bool:
+        """Keep Chrome open for a bounded CAPTCHA or OTP completion window."""
+        for _ in range(self._HUMAN_INTERACTION_POLLS):
+            page.wait_for_timeout(self._HUMAN_POLL_INTERVAL_MS)
+            if self._viewer_ready(page, timeout=250):
+                return True
+            if self._interaction_marker(page, timeout=250) is None:
+                return False
+        return False
+
     @staticmethod
-    def _interaction_marker(page: object) -> str | None:
+    def _interaction_marker(page: object, timeout: int = 2_000) -> str | None:
         """Identify a CAPTCHA or one-time-code gate without retaining page content."""
         try:
-            page_text = page.locator("body").inner_text(timeout=2_000).lower()
+            page_text = page.locator("body").inner_text(timeout=timeout).lower()
         except Exception:
             return None
         if "captcha" in page_text or "recaptcha" in page_text:

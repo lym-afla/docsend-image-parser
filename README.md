@@ -32,7 +32,7 @@ Use a reviewed `https://docsend.com/view/...` URL and replace only the angle-bra
    '@ | uv run --no-project --with-requirements requirements.txt python docsend_cookie_refresh.py
    ```
 
-   If the JSON response says `user_interaction_required` with `captcha_detected` or `otp_detected`, complete that step yourself in the visible browser and rerun only with the required approval. The helper does not bypass CAPTCHA or OTP challenges. Do not manually edit or copy cookie values into `cookies.json`.
+   When CAPTCHA or OTP appears, complete it yourself in the visible browser while the helper is still running. The helper keeps Chrome open for a bounded human-interaction window, then resumes the authorization state loop and re-probes the requested document before replacing the cookie file. If the window expires, Chrome closes and the JSON response says `user_interaction_required` with `captcha_detected` or `otp_detected`; rerun only with the required approval. The helper does not bypass CAPTCHA or OTP challenges. Do not manually edit or copy cookie values into `cookies.json`.
 
 3. Run the same recovery request again.
 
