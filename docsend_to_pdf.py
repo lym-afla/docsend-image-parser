@@ -1,41 +1,30 @@
-import json
+"""Legacy interactive entry point for downloading DocSend pages and compiling a PDF."""
+
 import os
 from pathlib import Path
 
-from docsend_image_downloader import DocSendImageDownloader, get_cookies_from_browser
-
 # Import PDF compilation functions
 from compile_to_pdf import (
-    create_pdf_without_ocr,
+    create_pdf_with_ocrmypdf,
     create_pdf_with_tesseract_default,
-    create_pdf_with_ocrmypdf
+    create_pdf_without_ocr,
 )
+from docsend_cookie_store import CookieStoreError, load_cookie_document
+from docsend_image_downloader import DocSendImageDownloader, get_cookies_from_browser
 from get_cookies_helper import extract_document_info_from_url
 
 DEFAULT_COOKIES_FILE = Path(__file__).with_name("cookies.json")
 
 
 def load_cookies_from_file(filename=DEFAULT_COOKIES_FILE):
-    """Load DocSend cookies from a JSON file with a top-level cookies object."""
+    """Load parser cookies through the compatible cookie-document store."""
     cookies_path = Path(filename)
 
-    if not cookies_path.exists():
-        print(f"❌ Cookie file not found: {cookies_path}")
-        return {}
-
     try:
-        with cookies_path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError:
-        print(f"❌ Could not parse cookie file as JSON: {cookies_path}")
+        return load_cookie_document(cookies_path).cookies
+    except CookieStoreError:
+        print(f"❌ Could not load cookie file: {cookies_path}")
         return {}
-
-    cookies = data.get("cookies", {})
-    if not isinstance(cookies, dict):
-        print(f"❌ Cookie file must contain a top-level 'cookies' object: {cookies_path}")
-        return {}
-
-    return cookies
 
 
 def main():
@@ -60,7 +49,8 @@ def main():
     
     # OCR settings
     use_ocr = True  # Set to True for OCR, False for simple PDF
-    use_premium_ocr = False  # Set to True for OCRmyPDF (premium quality), False for Tesseract (recommended)
+    # Set to True for OCRmyPDF (premium quality), False for recommended Tesseract.
+    use_premium_ocr = False
     language = 'eng'  # OCR language: 'eng', 'fra', 'deu', 'spa', etc.
     
     # ============================================================================
@@ -77,7 +67,7 @@ def main():
     # STEP 1: DOWNLOAD IMAGES FROM DOCSEND
     # ============================================================================
     
-    print(f"\n📥 Step 1: Downloading images from DocSend...")
+    print("\n📥 Step 1: Downloading images from DocSend...")
     print(f"Document: {document_name}")
     print(f"Pages: 1 to {end_page if end_page else 'end'}")
     
@@ -108,14 +98,16 @@ def main():
     # STEP 2: CREATE SEARCHABLE PDF
     # ============================================================================
     
-    print(f"\n📄 Step 2: Creating searchable PDF...")
+    print("\n📄 Step 2: Creating searchable PDF...")
     
     # Determine output filename based on settings
     if use_ocr:
         if use_premium_ocr:
             output_pdf = f'pdf_documents/{document_name}_premium.pdf'
             print("🔍 Creating PREMIUM searchable PDF with OCRmyPDF...")
-            success = create_pdf_with_ocrmypdf(image_dir, output_pdf, language, high_quality_mode=True)
+            success = create_pdf_with_ocrmypdf(
+                image_dir, output_pdf, language, high_quality_mode=True
+            )
         else:
             output_pdf = f'pdf_documents/{document_name}.pdf'
             print("🔍 Creating searchable PDF with Tesseract (RECOMMENDED)...")
@@ -130,7 +122,7 @@ def main():
     # ============================================================================
     
     if success:
-        print(f"\n🎉 SUCCESS! Complete workflow finished.")
+        print("\n🎉 SUCCESS! Complete workflow finished.")
         print(f"📁 Images: {image_dir}")
         print(f"📄 PDF: {output_pdf}")
         
