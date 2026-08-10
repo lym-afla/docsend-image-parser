@@ -1,7 +1,7 @@
-import json
 import os
 from pathlib import Path
 
+from docsend_cookie_store import CookieStoreError, load_cookie_document
 from docsend_image_downloader import DocSendImageDownloader, get_cookies_from_browser
 
 # Import PDF compilation functions
@@ -16,26 +16,14 @@ DEFAULT_COOKIES_FILE = Path(__file__).with_name("cookies.json")
 
 
 def load_cookies_from_file(filename=DEFAULT_COOKIES_FILE):
-    """Load DocSend cookies from a JSON file with a top-level cookies object."""
+    """Load parser cookies through the compatible cookie-document store."""
     cookies_path = Path(filename)
 
-    if not cookies_path.exists():
-        print(f"❌ Cookie file not found: {cookies_path}")
-        return {}
-
     try:
-        with cookies_path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError:
-        print(f"❌ Could not parse cookie file as JSON: {cookies_path}")
+        return load_cookie_document(cookies_path).cookies
+    except CookieStoreError:
+        print(f"❌ Could not load cookie file: {cookies_path}")
         return {}
-
-    cookies = data.get("cookies", {})
-    if not isinstance(cookies, dict):
-        print(f"❌ Cookie file must contain a top-level 'cookies' object: {cookies_path}")
-        return {}
-
-    return cookies
 
 
 def main():
