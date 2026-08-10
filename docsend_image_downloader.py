@@ -150,9 +150,9 @@ class DocSendImageDownloader:
                 image_url, headers=self.headers, timeout=_REQUEST_TIMEOUT
             )
             response.raise_for_status()
+            return response.content
         except requests.RequestException:
             raise ImageFetchError("image_request_failed") from None
-        return response.content
 
     def download_image(self, image_url, output_dir, page_number):
         """Download and save one image only after byte-level validation."""

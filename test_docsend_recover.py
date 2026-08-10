@@ -87,6 +87,29 @@ class ImageValidationTests(unittest.TestCase):
         self.assertEqual(str(caught.exception), "image_request_failed")
         self.assertNotIn(signed_url, repr(caught.exception))
 
+    def test_signed_image_content_read_exception_is_sanitized(self):
+        signed_url = "https://signed.example/page?secret=credential"
+
+        class InterruptedResponse:
+            def raise_for_status(self):
+                return None
+
+            @property
+            def content(self):
+                raise requests.exceptions.ChunkedEncodingError(f"interrupted {signed_url}")
+
+        class InterruptedSession:
+            def get(self, url, **kwargs):
+                return InterruptedResponse()
+
+        downloader = DocSendImageDownloader(session=InterruptedSession())
+
+        with self.assertRaises(ImageFetchError) as caught:
+            downloader.fetch_image_bytes(signed_url)
+
+        self.assertEqual(str(caught.exception), "image_request_failed")
+        self.assertNotIn(signed_url, repr(caught.exception))
+
 
 class ContinuousDownloadTests(unittest.TestCase):
     """Downloader results distinguish complete documents from page gaps."""
