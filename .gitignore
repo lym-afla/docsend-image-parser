@@ -47,4 +47,27 @@ pdf_documents/
 .Trashes
 ehthumbs.db
 Thumbs.db
+# Local DocSend authorization and atomic cookie-store siblings
 cookies.json
+cookies.json.*
+.cookies.json.*
+*.cookies.json.*
+cookies*.tmp
+
+# Downloaded DocSend pages, PDFs, and recovery outputs
+downloaded_images/
+recovery-pages/
+docsend-pages/
+docsend-recovery*/
+recovery-artifacts/
+live-recovery*/
+test-recovery*/
+*.pdf
+
+# Local Playwright/browser diagnostics
+playwright-report/
+test-results/
+playwright/.cache/
+screenshots/
+*.trace
+trace.zip
